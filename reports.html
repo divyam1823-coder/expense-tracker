@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports & Analytics - Simple Expense Tracker</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header>
+    <div class="container navbar">
+      <a href="index.html" class="brand">
+        <div class="brand-icon">💳</div>
+        <span>TrackWise</span>
+      </a>
+      <button class="mobile-toggle" aria-label="Toggle navigation">☰</button>
+      <ul class="nav-links">
+        <li><a href="index.html" class="nav-link">📊 Dashboard</a></li>
+        <li><a href="expenses.html" class="nav-link">📋 All Expenses</a></li>
+        <li><a href="add-expense.html" class="nav-link">➕ Add Transaction</a></li>
+        <li><a href="reports.html" class="nav-link">📈 Reports</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="container">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Reports & Breakdown</h1>
+        <p class="page-subtitle">Understand where your money comes from and where it goes.</p>
+      </div>
+      <div>
+        <button id="btn-reset-demo" class="btn btn-secondary btn-sm" title="Restore sample demo records">🔄 Reset Demo Data</button>
+      </div>
+    </div>
+
+    <!-- Financial Performance Highlights -->
+    <div class="summary-grid">
+      <div class="summary-box">
+        <div class="summary-box-label">Total Cash In</div>
+        <div class="summary-box-val" style="color: var(--success);" id="rep-income">$0.00</div>
+      </div>
+      <div class="summary-box">
+        <div class="summary-box-label">Total Spending Out</div>
+        <div class="summary-box-val" style="color: var(--danger);" id="rep-expense">$0.00</div>
+      </div>
+      <div class="summary-box">
+        <div class="summary-box-label">Net Savings</div>
+        <div class="summary-box-val" id="rep-savings">$0.00</div>
+      </div>
+      <div class="summary-box">
+        <div class="summary-box-label">Savings Rate</div>
+        <div class="summary-box-val" style="color: var(--primary);" id="rep-rate">0%</div>
+      </div>
+    </div>
+
+    <!-- Expense by Category Breakdown -->
+    <div class="card">
+      <div class="card-title">
+        <span>Expense Breakdown by Category</span>
+        <span id="total-exp-tag" class="badge">Total: $0.00</span>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 20px;">
+        Visual distribution of your spending across everyday expense categories.
+      </p>
+      <div id="expense-bars-container">
+        <!-- Injected via JavaScript -->
+      </div>
+    </div>
+
+    <!-- Income by Category Breakdown -->
+    <div class="card">
+      <div class="card-title">
+        <span>Income Sources</span>
+        <span id="total-inc-tag" class="badge">Total: $0.00</span>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 20px;">
+        Sources of all incoming cash flow.
+      </p>
+      <div id="income-bars-container">
+        <!-- Injected via JavaScript -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 TrackWise - Simple Multi-page Expense Tracker.</p>
+    </div>
+  </footer>
+
+  <script src="js/app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      renderReports();
+
+      document.getElementById('btn-reset-demo').addEventListener('click', () => {
+        if (confirm('Reset transactions back to sample demo data? Any custom entries will be replaced.')) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_TRANSACTIONS));
+          renderReports();
+          showToast('Sample demo transactions restored!');
+        }
+      });
+    });
+
+    function renderReports() {
+      const transactions = getTransactions();
+      const summary = calculateSummary(transactions);
+
+      document.getElementById('rep-income').textContent = formatCurrency(summary.totalIncome);
+      document.getElementById('rep-expense').textContent = formatCurrency(summary.totalExpense);
+      
+      const savEl = document.getElementById('rep-savings');
+      savEl.textContent = formatCurrency(summary.balance);
+      savEl.style.color = summary.balance >= 0 ? 'var(--text-dark)' : 'var(--danger)';
+
+      const rate = summary.totalIncome > 0 
+        ? Math.max(0, Math.round(((summary.totalIncome - summary.totalExpense) / summary.totalIncome) * 100))
+        : 0;
+      document.getElementById('rep-rate').textContent = `${rate}%`;
+
+      document.getElementById('total-exp-tag').textContent = `Total: ${formatCurrency(summary.totalExpense)}`;
+      document.getElementById('total-inc-tag').textContent = `Total: ${formatCurrency(summary.totalIncome)}`;
+
+      // Expense Breakdown
+      renderBreakdown(
+        transactions.filter(t => t.type === 'expense'), 
+        summary.totalExpense, 
+        'expense-bars-container', 
+        'var(--danger)'
+      );
+
+      // Income Breakdown
+      renderBreakdown(
+        transactions.filter(t => t.type === 'income'), 
+        summary.totalIncome, 
+        'income-bars-container', 
+        'var(--success)'
+      );
+    }
+
+    function renderBreakdown(items, totalAmount, containerId, barColor) {
+      const container = document.getElementById(containerId);
+
+      if (items.length === 0 || totalAmount === 0) {
+        container.innerHTML = `
+          <div class="empty-state" style="padding: 24px;">
+            <p>No records to display for this breakdown.</p>
+          </div>
+        `;
+        return;
+      }
+
+      // Group amounts by category
+      const catTotals = {};
+      items.forEach(t => {
+        const cat = t.category || 'Other';
+        const amt = parseFloat(t.amount) || 0;
+        catTotals[cat] = (catTotals[cat] || 0) + amt;
+      });
+
+      // Sort categories descending by amount
+      const sortedCategories = Object.keys(catTotals).sort((a, b) => catTotals[b] - catTotals[a]);
+
+      container.innerHTML = sortedCategories.map(cat => {
+        const amt = catTotals[cat];
+        const pct = ((amt / totalAmount) * 100).toFixed(1);
+        const icon = CATEGORY_ICONS[cat] || '🏷️';
+
+        return `
+          <div class="category-progress-item">
+            <div class="cat-progress-header">
+              <span class="cat-progress-name">
+                <span>${icon}</span>
+                <span>${escapeHtml(cat)}</span>
+              </span>
+              <span class="cat-progress-val">${formatCurrency(amt)} (${pct}%)</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" style="width: ${pct}%; background: ${barColor};"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>

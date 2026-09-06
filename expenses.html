@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>All Expenses - Simple Expense Tracker</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header>
+    <div class="container navbar">
+      <a href="index.html" class="brand">
+        <div class="brand-icon">💳</div>
+        <span>TrackWise</span>
+      </a>
+      <button class="mobile-toggle" aria-label="Toggle navigation">☰</button>
+      <ul class="nav-links">
+        <li><a href="index.html" class="nav-link">📊 Dashboard</a></li>
+        <li><a href="expenses.html" class="nav-link">📋 All Expenses</a></li>
+        <li><a href="add-expense.html" class="nav-link">➕ Add Transaction</a></li>
+        <li><a href="reports.html" class="nav-link">📈 Reports</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Transaction History</h1>
+        <p class="page-subtitle">Browse, search, filter and manage all your income and expenses.</p>
+      </div>
+      <div>
+        <a href="add-expense.html" class="btn btn-primary">+ Add New</a>
+      </div>
+    </div>
+
+    <!-- Filter & Search Card -->
+    <div class="card">
+      <div class="filter-bar">
+        <input type="text" id="search-input" class="form-control search-input" placeholder="🔍 Search transactions by name or note...">
+        
+        <select id="type-filter" class="form-control filter-select">
+          <option value="all">All Types</option>
+          <option value="expense">Expenses Only</option>
+          <option value="income">Income Only</option>
+        </select>
+
+        <select id="category-filter" class="form-control filter-select">
+          <option value="all">All Categories</option>
+        </select>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; color: var(--text-muted);">
+        <span id="result-count">Showing 0 transactions</span>
+        <span id="filter-total" style="font-weight: 600; color: var(--text-dark);"></span>
+      </div>
+    </div>
+
+    <!-- Transaction List Container -->
+    <div class="card">
+      <div id="all-transactions-list" class="transaction-list">
+        <!-- Injected via JS -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 TrackWise - Simple Multi-page Expense Tracker.</p>
+    </div>
+  </footer>
+
+  <script src="js/app.js"></script>
+  <script>
+    let currentTransactions = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+      currentTransactions = getTransactions();
+      populateCategoryDropdown();
+      renderList();
+
+      document.getElementById('search-input').addEventListener('input', renderList);
+      document.getElementById('type-filter').addEventListener('change', renderList);
+      document.getElementById('category-filter').addEventListener('change', renderList);
+    });
+
+    function populateCategoryDropdown() {
+      const select = document.getElementById('category-filter');
+      const categories = new Set();
+      currentTransactions.forEach(t => {
+        if (t.category) categories.add(t.category);
+      });
+
+      select.innerHTML = '<option value="all">All Categories</option>' + 
+        Array.from(categories).sort().map(cat => `<option value="${cat}">${cat}</option>`).join('');
+    }
+
+    function renderList() {
+      const searchTerm = document.getElementById('search-input').value.toLowerCase().trim();
+      const typeFilter = document.getElementById('type-filter').value;
+      const categoryFilter = document.getElementById('category-filter').value;
+
+      const filtered = currentTransactions.filter(tx => {
+        const matchesSearch = tx.title.toLowerCase().includes(searchTerm) || 
+                              (tx.notes && tx.notes.toLowerCase().includes(searchTerm));
+        const matchesType = typeFilter === 'all' || tx.type === typeFilter;
+        const matchesCategory = categoryFilter === 'all' || tx.category === categoryFilter;
+
+        return matchesSearch && matchesType && matchesCategory;
+      });
+
+      // Update counter
+      document.getElementById('result-count').textContent = `Showing ${filtered.length} transaction${filtered.length === 1 ? '' : 's'}`;
+
+      // Calculate total for filtered list
+      let sum = 0;
+      filtered.forEach(t => {
+        const amt = parseFloat(t.amount) || 0;
+        sum += (t.type === 'income' ? amt : -amt);
+      });
+      document.getElementById('filter-total').textContent = `Filtered Net: ${formatCurrency(sum)}`;
+
+      const container = document.getElementById('all-transactions-list');
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">🔍</div>
+            <p>No matching transactions found. Try adjusting your search or filters.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filtered.map(tx => {
+        const isIncome = tx.type === 'income';
+        const sign = isIncome ? '+' : '-';
+        const icon = CATEGORY_ICONS[tx.category] || (isIncome ? '💰' : '💳');
+        
+        return `
+          <div class="transaction-item" id="item-${tx.id}">
+            <div class="tx-left">
+              <div class="tx-category-icon">${icon}</div>
+              <div>
+                <div class="tx-title">${escapeHtml(tx.title)}</div>
+                <div class="tx-meta">
+                  <span class="badge">${escapeHtml(tx.category)}</span>
+                  <span>📅 ${formatDate(tx.date)}</span>
+                  ${tx.notes ? `<span title="${escapeHtml(tx.notes)}">📝 ${escapeHtml(tx.notes)}</span>` : ''}
+                </div>
+              </div>
+            </div>
+            <div class="tx-right">
+              <div class="tx-amount ${tx.type}">${sign}${formatCurrency(tx.amount)}</div>
+              <button class="btn btn-danger btn-sm" onclick="handleDelete('${tx.id}', '${escapeHtml(tx.title)}')">Delete</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function handleDelete(id, title) {
+      if (confirm(`Are you sure you want to delete "${title}"?`)) {
+        deleteTransaction(id);
+        currentTransactions = getTransactions();
+        populateCategoryDropdown();
+        renderList();
+        showToast(`Transaction "${title}" deleted`);
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
