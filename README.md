@@ -4,21 +4,6 @@ A clean, responsive, multi-page Expense Tracker web application built with vanil
 
 ---
 
-## 🚀 How to Run
-
-No web server or build step is required!
-
-1. Navigate to the project directory:
-   `C:\Users\DELL\.gemini\antigravity\scratch\expense-tracker-site`
-2. Double-click **`index.html`** to open it directly in any web browser (Google Chrome, Microsoft Edge, Firefox, etc.).
-3. Alternatively, if you have python installed, run:
-   ```bash
-   cd C:\Users\DELL\.gemini\antigravity\scratch\expense-tracker-site
-   python -m http.server 8080
-   ```
-   Then open `http://localhost:8080` in your browser.
-
----
 
 ## 📄 Pages Included
 
